@@ -1,6 +1,14 @@
-﻿@model IEnumerable<MedicalCompoundManagement.Models.MedicalCompound>
-
-@{
+﻿@{
     Layout = "~/Views/Shared/_Layout.cshtml";
     ViewBag.Title = "Upload Master Compound List";
+}
+
+
+@using (Html.BeginForm("Index", "MedicalCompounds", FormMethod.Post, new { enctype = "multipart/form-data" }))
+{
+    <div>
+        <div>Get Excel file </div>
+        <div><input type="file" id="file" name="file" width="100" />&nbsp;</div>
+        <input type="submit" id="Submit" name="Submit" value="Submit" />
+    </div>
 }
