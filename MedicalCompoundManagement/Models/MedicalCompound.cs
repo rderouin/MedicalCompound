@@ -2,7 +2,7 @@
 using System.Linq;
 using System.Web;
 using System.Data;
-using System.Data.OleDb;
+using LinqToExcel;
 using System.Data.Entity;
 using System.Web.Configuration;
 using System.Collections.Generic;
@@ -15,7 +15,7 @@ namespace MedicalCompoundManagement.Models
     public class MedicalCompound
     {
         private string MedicalCompoundDbConnection = WebConfigurationManager.OpenWebConfiguration(null).ConnectionStrings["MedicalCompoundDbContext"];
-
+        private string connectionString = string.Empty;
 
         [Required]
         public int ID { get; set; }
@@ -44,40 +44,32 @@ namespace MedicalCompoundManagement.Models
         [StringLength(50)]
         public string UpdateUser { get; set; }
 
-        public void BulkLoadMedicalCompounds(string ExcelFileName)
+        public void BulkLoadMedicalCompounds
         {
-            string excelConnectionString = string.Format(@"Provider=Microsoft.ACE.OLEDB.12.0;Data Source={0};Extended Properties=Excel 12.0;Persist Security Info=False", ExcelFileName);
-            DataTable excelTables = getOleSchemaTableNames(excelConnectionString);
-
-            
-
-
-           
 
         }
 
-        //for reuse
-        private DataTable getOleSchemaTableNames(string ConnectionString)
+        public IQueryable<MedicalCompound> setMedicalCompoundsFromExcel(string ExcelFileName)
         {
-            try
-            {
-                using (OleDbConnection connection = new OleDbConnection(ConnectionString))
-                {
-                    if (connection.State == ConnectionState.Closed )
-                    {
-                        connection.Open();
-                    }
+            var excel = new ExcelQueryFactory(ExcelFileName);
+            var medicalCompounds = from x in excel.Worksheet<MedicalCompound>()
+                                   select x;
 
-                    DataTable schemaTable = connection.GetOleDbSchemaTable(OleDbSchemaGuid.Tables, new object[] { null, null, null, "TABLE" });
-                    return schemaTable;
-                }
-            }
-            catch (OleDbException e)
+            foreach (var v in medicalCompounds)
             {
-                throw new OleDbException();
+                v.CreateTs = DateTime.Now;
+                v.UpdateTs = DateTime.Now;
+                v.CreateUser = HttpContext.Current.User.Identity.Name;
+                v.UpdateUser = HttpContext.Current.User.Identity.Name;
             }
+
+            return medicalCompounds; 
+
         }
+
     }
+
+
 
     public class MedicalCompoundDbContext : DbContext
     {
