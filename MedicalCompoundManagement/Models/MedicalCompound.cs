@@ -2,13 +2,15 @@
 using System.Linq;
 using System.Web;
 using System.Data;
-using LinqToExcel;
-using System.Data.SqlClient; 
+using System.Data.OleDb;
 using System.Data.Entity;
+using System.ComponentModel; 
 using System.Configuration;
+using System.Data.SqlClient; 
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
-using System.ComponentModel; 
+using System.ComponentModel.DataAnnotations.Schema;
+
 
 
 namespace MedicalCompoundManagement.Models
@@ -18,14 +20,15 @@ namespace MedicalCompoundManagement.Models
     {
         private string MedicalCompoundDbConnection = ConfigurationManager.ConnectionStrings["MedicalCompoundDbContext"].ConnectionString;
         private string connectionString = string.Empty;
+        private OleDbConnection oleDbConnection;
+        private OleDbCommand oleDbCommand;
+
 
         #region Properties
-        [Required]
         public int ID { get; set; }
 
         [Display(Name = "Compound Name")]
-        [StringLength(100)]
-        [Required]
+        [StringLength(250)]
         public string Name { get; set; }
 
         [Display(Name = "Created Date")]
@@ -35,6 +38,7 @@ namespace MedicalCompoundManagement.Models
 
         [Display(Name = "Created By")]
         [StringLength(50)]
+        [Column(TypeName = "varchar")]
         public string CreateUser { get; set; }
 
         [Display(Name = "Updated Date")]
@@ -44,6 +48,7 @@ namespace MedicalCompoundManagement.Models
         public DateTime UpdateTs { get; set; }
 
         [Display(Name = "Updated By")]
+        [Column(TypeName = "varchar")]
         [StringLength(50)]
         public string UpdateUser { get; set; } 
         #endregion
@@ -51,62 +56,46 @@ namespace MedicalCompoundManagement.Models
         #region Import Excel Methods
         public void BulkLoadMedicalCompounds(string excelFileName)
         {
+            connectionString = ConfigurationManager.ConnectionStrings["MedicalCompoundExcelSheet"].ConnectionString; ;
+
             using (SqlBulkCopy bulkLoad = new SqlBulkCopy(MedicalCompoundDbConnection))
             {
-                bulkLoad.DestinationTableName = "MedicalCompounds";
-                bulkLoad.WriteToServer(GetMedicalCompoundsDataTable());
-            }
-        }
-
-        private DataTable GetMedicalCompoundsDataTable()
-        {
-            return ConvertToDataTable(SetMedicalCompoundsFromExcel());
-        }
-
-        //refactor
-        private DataTable ConvertToDataTable<T>(IList<T> list)
-        {
-            PropertyDescriptorCollection properties = TypeDescriptor.GetProperties(typeof(T));
-            DataTable table = new DataTable();
-
-            foreach (PropertyDescriptor prop in properties)
-            {
-                table.Columns.Add(prop.Name, Nullable.GetUnderlyingType(prop.PropertyType) ?? prop.PropertyType);
-            }
-
-            foreach (T item in list)
-            {
-                DataRow row = table.NewRow();
-                foreach (PropertyDescriptor prop in properties)
+                SetOleDbConnection();
+                if (oleDbConnection.State == ConnectionState.Closed)
                 {
-                    row[prop.Name] = prop.GetValue(item) ?? DBNull.Value;
-                    table.Rows.Add(row);
+                    oleDbConnection.Open();
                 }
+
+                DataTable schemaTable = oleDbConnection.GetOleDbSchemaTable(OleDbSchemaGuid.Tables, new object[] { null, null, null, "TABLE" });
+                string excelConnectionString = string.Format("SELECT CompoundId AS [ID], CompoundName AS [Name], CreateTs, CreateUser, UpdateTs, UpdateUser FROM [{0}]", schemaTable.Rows[0].Field<string>("TABLE_NAME"));
+                SetOleDbCommand(excelConnectionString);
+
+                bulkLoad.DestinationTableName = "MedicalCompounds";
+                bulkLoad.WriteToServer(oleDbCommand.ExecuteReader());
             }
-            return table;
+            CloseOleDbConnection();
         }
 
-        private List<MedicalCompound> SetMedicalCompoundsFromExcel()
+        private void SetOleDbCommand(string SQLQuery)
         {
-            var excel = new ExcelQueryFactory(ConfigurationManager.ConnectionStrings["MedicalCompoundExcelSheet"].ConnectionString);
-            var medicalCompounds = from x in excel.Worksheet<MedicalCompound>()
-                                   select x;
+            oleDbCommand = new OleDbCommand(SQLQuery,oleDbConnection);
+        }
 
-            foreach (var v in medicalCompounds)
+        private void SetOleDbConnection()
+        {
+            oleDbConnection = new OleDbConnection(connectionString);
+        }
+
+
+        private void CloseOleDbConnection()
+        {
+            if (oleDbConnection.State != ConnectionState.Closed)
             {
-                v.CreateTs = DateTime.Now;
-                v.UpdateTs = DateTime.Now;
-                v.CreateUser = HttpContext.Current.User.Identity.Name;
-                v.UpdateUser = HttpContext.Current.User.Identity.Name;
+                this.oleDbConnection.Close();
             }
-
-            return (List<MedicalCompound>)medicalCompounds;
-        } 
+        }
         #endregion
-
     }
-
-
 
     public class MedicalCompoundDbContext : DbContext
     {

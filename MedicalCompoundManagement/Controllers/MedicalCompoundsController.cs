@@ -1,12 +1,9 @@
-﻿using System;
-using System.IO;
-using System.Collections.Generic;
-using System.Data;
-using System.Data.Entity;
-using System.Linq;
+﻿using System.IO;
 using System.Net;
 using System.Web;
+using System.Linq;
 using System.Web.Mvc;
+using System.Data.Entity;
 using MedicalCompoundManagement.Models;
 
 namespace MedicalCompoundManagement.Controllers
@@ -14,6 +11,7 @@ namespace MedicalCompoundManagement.Controllers
     public class MedicalCompoundsController : Controller
     {
         private MedicalCompoundDbContext db = new MedicalCompoundDbContext();
+        private string ExcelFileName = "MedicalCompounds.xlsx";
 
         // GET: MedicalCompounds
         public ActionResult Index()
@@ -59,9 +57,11 @@ namespace MedicalCompoundManagement.Controllers
                 // extract only the fielname
                 var fileName = Path.GetFileName(file.FileName);
                 // store the file inside ~/App_Data/uploads folder
-                var path = Path.Combine(Server.MapPath("~/App_Data/Uploads"), fileName);
+                var path = Path.Combine(Server.MapPath("~/App_Data/Uploads"), ExcelFileName);
                 file.SaveAs(path);
             }
+
+            LoadExcelSheetData();
             // redirect back to the index action to show the form once again
             return RedirectToAction("Index");
         }
@@ -139,6 +139,15 @@ namespace MedicalCompoundManagement.Controllers
             db.MedicalCompounds.Remove(medicalCompound);
             db.SaveChanges();
             return RedirectToAction("Index");
+        }
+
+        private void LoadExcelSheetData()
+        {
+            MedicalCompound mc = new MedicalCompound();
+            if (ExcelFileName != null)
+            {
+                mc.BulkLoadMedicalCompounds(ExcelFileName);
+            }
         }
 
         protected override void Dispose(bool disposing)
